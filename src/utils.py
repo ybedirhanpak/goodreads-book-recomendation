@@ -51,3 +51,11 @@ def normalize_token(token: str):
         Normalizes given token by removing trailing spaces 
     '''
     return token.strip()
+
+
+def compress_book_url(book_url: str):
+    return book_url.replace(BOOKS_BASE_URL, "")
+
+
+def decompress_book_url(compressed_url: str):
+    return f"{BOOKS_BASE_URL}/{compressed_url}"
