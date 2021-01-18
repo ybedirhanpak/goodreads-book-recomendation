@@ -3,8 +3,20 @@ from book import Book
 
 
 class BookPreprocessor():
-    def __init__(self, books_pickle="out/books.pickle"):
+    def __init__(self,
+                 books_pickle="out/books.pickle",
+                 vocabulary_pickle="out/vocabulary.pickle",
+                 ie_pickle="out/ie.pickle",
+                 tf_pickle="out/tf.pickle",
+                 df_pickle="out/df.pickle"
+                 ):
+        # Pickle file locations
         self.books_pickle = books_pickle
+        self.vocabulary_pickle = vocabulary_pickle
+        self.ie_pickle = ie_pickle
+        self.tf_pickle = tf_pickle
+        self.df_pickle = df_pickle
+
         self.books = {}
         self.vocabulary = set()
         self.inverted_index = {}
@@ -53,9 +65,10 @@ class BookPreprocessor():
         self.books: dict = utils.unpickle_object(self.books_pickle)
         for book in self.books.values():
             self.__preprocess_book(book)
+
         self.vocabulary_list = list(self.vocabulary)
 
-        print("Vocabulary", len(self.vocabulary))
-        print("Doc frequency", len(self.doc_frequency.keys()))
-        print("Term frequency", len(self.term_frequency.keys()))
-        print("Inverted index", len(self.inverted_index.keys()))
+        utils.pickle_object(self.vocabulary_list, self.vocabulary_pickle)
+        utils.pickle_object(self.inverted_index, self.ie_pickle)
+        utils.pickle_object(self.doc_frequency, self.df_pickle)
+        utils.pickle_object(self.term_frequency, self.tf_pickle)
