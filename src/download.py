@@ -12,7 +12,7 @@ class BookExtractor():
         self.books = {}
 
     def __clear_html_text(self, text: str):
-        cleaned = re.sub(r'<.*?>|\(.*?\)|\\n|\\\'s', '', text)
+        cleaned = re.sub(r'<.*?>', '', text)
         cleaned = re.sub(r'\s{2,}', ' ', cleaned).strip()
         return cleaned
 
@@ -25,9 +25,12 @@ class BookExtractor():
 
     def __extract_authors(self, book_html: str):
         authors_match = re.findall(
-            r'<div class=\\\'authorName__container\\\'.*?>.*?<a class="authorName".*?><span.*?>(.*?)<\/div>', book_html)
+            r'<div class=\'authorName__container\'.*?>.*?<a class="authorName".*?><span.*?>(.*?)<\/div>', book_html)
+        # Clear html inside text
         authors = [self.__clear_html_text(author_match)
                    for author_match in authors_match]
+        # Remove paranthesis descripiton of authors
+        authors = [re.sub('\(.*?\)', '', author).strip() for author in authors]
         return authors
 
     def __extract_description(self, book_html: str):
@@ -50,28 +53,31 @@ class BookExtractor():
                 if len(free_text_container_match) > 0:
                     span_text = free_text_container_match[0]
             # Remove internal html elements in the span text
-            return re.sub(r'<.*?>', '', span_text)
+            return self.__clear_html_text(span_text)
         return ''
 
     def __extract_recommendations(self, book_html: str):
         recommendations_match = re.findall(
-            r'<li class=\\\'cover\\\'.*?<a.*?href="(.*?)".*?<\/a>', book_html)
-        return recommendations_match
+            r'<li class=\'cover\'.*?<a.*?href="(.*?)".*?<\/a>', book_html)
+        return [utils.compress_book_url(str(recommendation)) for recommendation in recommendations_match]
 
     def __extract_genres(self, book_html: str):
         genres_match = re.findall(
             r'<div class="elementList ">.*?<div class="left">.*?<a.*?>(.*?)<\/a>', book_html)
-        return genres_match
+        return list(set([self.__clear_html_text(genre) for genre in genres_match]))
 
     def extract_book(self, book_url: str, book_html: str):
-        title = self.__extract_title(book_html)
-        description = self.__extract_description(book_html)
-        authors = self.__extract_authors(book_html)
-        recommendations = self.__extract_recommendations(book_html)
-        genres = self.__extract_genres(book_html)
-
-        self.books[book_url] = Book(
-            book_url, title, description, authors, recommendations, genres)
+        url = utils.compress_book_url(book_url)
+        book_html = re.sub(r'\n|\r', ' ', book_html)
+        book = Book(
+            url=url,
+            title=self.__extract_title(book_html),
+            description=self.__extract_description(book_html),
+            authors=self.__extract_authors(book_html),
+            recommendations=self.__extract_recommendations(book_html),
+            genres=self.__extract_genres(book_html)
+        )
+        self.books[url] = book
 
     def pickle_books(self, location="out/books.pickle"):
         utils.pickle_object(self.books, location)
@@ -148,7 +154,7 @@ class BookDownloader():
             while len(self.failed_downloads) > 0:
                 failed = len(self.failed_downloads)
                 print(
-                    f"{books_count - failed} completed, {failed} failed, out of {books_count} documents. Waiting 1 minutes to try again...")
+                    f"{books_count - failed} completed, {failed} failed, out of {books_count} documents. Waiting 1 minute to try again...")
                 time.sleep(60)
                 print("Downloading the books, please wait...")
                 trial_threads = [threading.Thread(target=self.__download_book, args=(
