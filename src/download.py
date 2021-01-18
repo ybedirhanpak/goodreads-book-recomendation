@@ -71,7 +71,7 @@ class BookExtractor():
         genres = self.__extract_genres(book_html)
 
         self.books[book_url] = Book(
-            title, description, authors, recommendations, genres)
+            book_url, title, description, authors, recommendations, genres)
 
     def pickle_books(self, location="out/books.pickle"):
         utils.pickle_object(self.books, location)
