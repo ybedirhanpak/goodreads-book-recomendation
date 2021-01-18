@@ -70,7 +70,6 @@ class BookExtractor():
         recommendations = self.__extract_recommendations(book_html)
         genres = self.__extract_genres(book_html)
 
-        print("Extracted: ", title)
         self.books[book_url] = Book(
             title, description, authors, recommendations, genres)
 
@@ -112,7 +111,7 @@ class BookDownloader():
                     try:
                         req = urllib.request.Request(url)
                         with urllib.request.urlopen(req, timeout=60) as response:
-                            book_html = response.read()
+                            book_html = response.read().decode("utf-8")
                             print(f"Book created: {file_name}", file=log_file)
                             # Save book into file
                             with open(utils.get_file_path(file_name), "w+") as f_out:
@@ -122,11 +121,17 @@ class BookDownloader():
                             f"Error while downloading book: {url}, {e}", file=error_file)
                         # Add book into failed downloads
                         self.failed_downloads.append((index, url))
-                if book_html != '':
-                    self.extractor.extract_book(
-                        book_url=url, book_html=book_html)
+                if book_html and book_html != '':
+                    try:
+                        self.extractor.extract_book(
+                            book_url=url, book_html=book_html)
+                    except Exception as e:
+                        print(
+                            f"Error while extracting book: {url}, {e}", file=error_file)
 
     def download_books(self, books_file="data/books.txt"):
+        print("Downloading the books, please wait...")
+
         # Read book urls from data/books.txt and download into books/{id}.html
         with open(utils.get_file_path(books_file)) as f:
             start_time = time.time()
@@ -145,13 +150,15 @@ class BookDownloader():
                 print(
                     f"{books_count - failed} completed, {failed} failed, out of {books_count} documents. Waiting 1 minutes to try again...")
                 time.sleep(60)
-                trial_threads = [threading.Thread(target=self.download_book, args=(
+                print("Downloading the books, please wait...")
+                trial_threads = [threading.Thread(target=self.__download_book, args=(
                     index, url,)) for index, url in self.failed_downloads]
                 self.failed_downloads.clear()
                 utils.run_threads_and_wait(trial_threads)
 
+            print(f"Extracting and saving into '{self.books_pickle}'...")
             self.extractor.pickle_books(self.books_pickle)
 
             end_time = time.time()
             print(
-                f"{books_count} documents has been downloaded in {end_time-start_time} seconds.")
+                f"{books_count} documents has been downloaded and extracted in {end_time-start_time} seconds.")
