@@ -1,4 +1,5 @@
 import utils
+import time
 from book import Book
 
 
@@ -62,6 +63,7 @@ class BookPreprocessor():
                 self.term_frequency[word_book_pair] += 1
 
     def preprocess_books(self):
+        start_time = time.time()
         self.books: dict = utils.unpickle_object(self.books_pickle)
         for book in self.books.values():
             self.__preprocess_book(book)
@@ -72,3 +74,6 @@ class BookPreprocessor():
         utils.pickle_object(self.inverted_index, self.ie_pickle)
         utils.pickle_object(self.doc_frequency, self.df_pickle)
         utils.pickle_object(self.term_frequency, self.tf_pickle)
+
+        end_time = time.time()
+        print(f"It took {end_time - start_time} seconds to preprocess books")
