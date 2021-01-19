@@ -53,6 +53,9 @@ def normalize_token(token: str):
     return token.strip()
 
 
+def is_book_url(text: str):
+    return text.find(BOOKS_BASE_URL) > -1
+
 def compress_book_url(book_url: str):
     return book_url.replace(BOOKS_BASE_URL, "")
 
