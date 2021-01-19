@@ -69,7 +69,7 @@ class BookExtractor():
     def extract_book(self, book_url: str, book_html: str):
         url = utils.compress_book_url(book_url)
         book_html = re.sub(r'\n|\r', ' ', book_html)
-        book = Book(
+        return Book(
             url=url,
             title=self.__extract_title(book_html),
             description=self.__extract_description(book_html),
@@ -77,6 +77,10 @@ class BookExtractor():
             recommendations=self.__extract_recommendations(book_html),
             genres=self.__extract_genres(book_html)
         )
+
+    def store_book(self, book_url: str, book_html: str):
+        book = self.extract_book(book_url, book_html)
+        url = utils.compress_book_url(book_url)
         self.books[url] = book
 
     def pickle_books(self, location="out/books.pickle"):
@@ -129,11 +133,32 @@ class BookDownloader():
                         self.failed_downloads.append((index, url))
                 if book_html and book_html != '':
                     try:
-                        self.extractor.extract_book(
+                        self.extractor.store_book(
                             book_url=url, book_html=book_html)
                     except Exception as e:
                         print(
                             f"Error while extracting book: {url}, {e}", file=error_file)
+
+    def download_single_book(self, book_url):
+        if not utils.is_book_url(book_url):
+            print(f"Bad book_url: {book_url}")
+            return
+        book_html = ''
+        book = None
+        try:
+            req = urllib.request.Request(book_url)
+            with urllib.request.urlopen(req, timeout=60) as response:
+                book_html = response.read().decode("utf-8")
+        except Exception as e:
+            print(f"Error while downloading book: {book_url}, {e}")
+        if book_html and book_html != '':
+            try:
+                book = self.extractor.extract_book(
+                    book_url=book_url, book_html=book_html)
+            except Exception as e:
+                print(
+                    f"Error while extracting book: {book_url}, {e}")
+        return book
 
     def download_books(self, books_file="data/books.txt"):
         print("Downloading the books, please wait...")
