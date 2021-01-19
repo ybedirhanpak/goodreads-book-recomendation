@@ -1,3 +1,4 @@
+from typing import List
 from book import Book
 import utils
 import time
@@ -7,23 +8,37 @@ import urllib.request
 
 
 class BookExtractor():
+    '''
+        This class extracts title, authors, description, recommendations and genres from book html
+    '''
 
     def __init__(self):
         self.books = {}
 
-    def __clear_html_text(self, text: str):
-        cleaned = re.sub(r'<.*?>', '', text)
-        cleaned = re.sub(r'\s{2,}', ' ', cleaned).strip()
-        return cleaned
+    def __clear_html_text(self, text: str) -> str:
+        '''
+            Removes inner html elements inside the text
+            Replaces multiple spaces with single space
+            Returns the cleared text
+        '''
+        cleared_text = re.sub(r'<.*?>', '', text)
+        cleared_text = re.sub(r'\s{2,}', ' ', cleared_text).strip()
+        return cleared_text
 
-    def __extract_title(self, book_html: str):
+    def __extract_title(self, book_html: str) -> str:
+        '''
+            Extracts and returns the title from book_html
+        '''
         title_match = re.findall(
             r'<h1 id="bookTitle".*?>(.*?)<\/h1>', book_html)
         if len(title_match) > 0:
             return self.__clear_html_text(title_match[0])
         return ''
 
-    def __extract_authors(self, book_html: str):
+    def __extract_authors(self, book_html: str) -> List[str]:
+        '''
+            Extracts and returns the authors from book_html
+        '''
         authors_match = re.findall(
             r'<div class=\'authorName__container\'.*?>.*?<a class="authorName".*?><span.*?>(.*?)<\/div>', book_html)
         # Clear html inside text
@@ -33,7 +48,10 @@ class BookExtractor():
         authors = [re.sub('\(.*?\)', '', author).strip() for author in authors]
         return authors
 
-    def __extract_description(self, book_html: str):
+    def __extract_description(self, book_html: str) -> str:
+        '''
+            Extracts and returns the description from book_html
+        '''
         description_match = re.findall(
             r'<div id="descriptionContainer".*?<\/div>', book_html)
         if len(description_match) > 0:
@@ -56,17 +74,26 @@ class BookExtractor():
             return self.__clear_html_text(span_text)
         return ''
 
-    def __extract_recommendations(self, book_html: str):
+    def __extract_recommendations(self, book_html: str) -> List[str]:
+        '''
+            Extracts and returns the recommendations from book_html
+        '''
         recommendations_match = re.findall(
             r'<li class=\'cover\'.*?<a.*?href="(.*?)".*?<\/a>', book_html)
         return [utils.compress_book_url(str(recommendation)) for recommendation in recommendations_match]
 
-    def __extract_genres(self, book_html: str):
+    def __extract_genres(self, book_html: str) -> List[str]:
+        '''
+            Extracts and returns the genres from book_html
+        '''
         genres_match = re.findall(
             r'<div class="elementList ">.*?<div class="left">.*?<a.*?>(.*?)<\/a>', book_html)
         return list(set([self.__clear_html_text(genre) for genre in genres_match]))
 
-    def extract_book(self, book_url: str, book_html: str):
+    def extract_book(self, book_url: str, book_html: str) -> Book:
+        '''
+            Extracts and returns the book from book_html
+        '''
         url = utils.compress_book_url(book_url)
         book_html = re.sub(r'\n|\r', ' ', book_html)
         return Book(
@@ -78,12 +105,18 @@ class BookExtractor():
             genres=self.__extract_genres(book_html)
         )
 
-    def store_book(self, book_url: str, book_html: str):
-        book = self.extract_book(book_url, book_html)
+    def store_book(self, book_url: str, book_html: str) -> None:
+        '''
+            Extracts the book from book_html and stores it inside books dictionary
+        '''
         url = utils.compress_book_url(book_url)
+        book = self.extract_book(book_url, book_html)
         self.books[url] = book
 
-    def pickle_books(self, location="out/books.pickle"):
+    def pickle_books(self, location: str = "out/books.pickle") -> None:
+        '''
+            Pickles books dictionary to given location
+        '''
         utils.pickle_object(self.books, location)
 
 
