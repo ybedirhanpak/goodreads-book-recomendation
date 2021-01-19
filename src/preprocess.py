@@ -1,3 +1,4 @@
+from typing import List
 import utils
 import time
 from book import Book
@@ -23,6 +24,31 @@ class BookPreprocessor():
         self.inverted_index = {}
         self.term_frequency = {}
         self.doc_frequency = {}
+
+    def __tokenize_text(self, text: str):
+        # Remove punctuation of the document
+        normalized_text = utils.normalize_doc(text)
+
+        token_list = []
+
+        # Preprocess each token in the document
+        for token in normalized_text.split(" "):
+            # Normalize the token
+            n_token = utils.normalize_token(token)
+
+            # Skip empty characters
+            if n_token == '':
+                continue
+
+            token_list.append(n_token)
+
+        return token_list
+
+    def tokenize_description(self, book: Book) -> List[str]:
+        return self.__tokenize_text(book.description)
+
+    def tokenize_genres(self, book: Book) -> List[str]:
+        return [' '.join(self.__tokenize_text(genre)) for genre in book.genres]
 
     def __preprocess_book(self, book: Book):
         book_id = book.url
