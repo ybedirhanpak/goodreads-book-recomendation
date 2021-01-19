@@ -1,4 +1,4 @@
-from typing import List
+from typing import List, NoReturn
 from book import Book
 import utils
 import time
@@ -11,9 +11,6 @@ class BookExtractor():
     '''
         This class extracts title, authors, description, recommendations and genres from book html
     '''
-
-    def __init__(self):
-        self.books = {}
 
     def __clear_html_text(self, text: str) -> str:
         '''
@@ -105,43 +102,33 @@ class BookExtractor():
             genres=self.__extract_genres(book_html)
         )
 
-    def store_book(self, book_url: str, book_html: str) -> None:
-        '''
-            Extracts the book from book_html and stores it inside books dictionary
-        '''
-        url = utils.compress_book_url(book_url)
-        book = self.extract_book(book_url, book_html)
-        self.books[url] = book
-
-    def pickle_books(self, location: str = "out/books.pickle") -> None:
-        '''
-            Pickles books dictionary to given location
-        '''
-        utils.pickle_object(self.books, location)
-
 
 class BookDownloader():
 
     def __init__(self,
                  download_dir="out/books",
-                 logs_file="out/logs.txt",
-                 errors_file="out/errors.txt",
-                 books_pickle="out/books.pickle"
+                 logs_file="out/download_logs.txt",
+                 errors_file="out/download_errors.txt"
                  ):
         self.download_dir = download_dir
         self.logs_file = logs_file
         self.errors_file = errors_file
-        self.books_pickle = books_pickle
         self.books = {}
         self.failed_downloads = []
         self.extractor = BookExtractor()
         # Create books directory
         utils.create_dir("out/books")
 
-    def __download_book(self, index, url):
+    def __download_book(self, index: int, url: str) -> NoReturn:
+        '''
+            Downloads a single book if it hasn't been downloaded before,
+            If download is failed, adds the (index, url) tuple into failed_downloads
+            index is positional index of the url in books.txt file
+            url is the full url of the book
+        '''
         with open(utils.get_file_path(self.logs_file), "a+") as log_file:
             with open(utils.get_file_path(self.errors_file), "a+") as error_file:
-                if not re.search("https://www.goodreads.com/book/show/", url):
+                if not utils.is_book_url(url):
                     print(f"Bad url: {url}", file=log_file)
                     return
                 file_name = f"{self.download_dir}/{index}.html"
@@ -155,7 +142,8 @@ class BookDownloader():
                         req = urllib.request.Request(url)
                         with urllib.request.urlopen(req, timeout=60) as response:
                             book_html = response.read().decode("utf-8")
-                            print(f"Book created: {file_name}", file=log_file)
+                            print(
+                                f"Book is saved into: {file_name}", file=log_file)
                             # Save book into file
                             with open(utils.get_file_path(file_name), "w+") as f_out:
                                 print(book_html, file=f_out)
@@ -166,13 +154,17 @@ class BookDownloader():
                         self.failed_downloads.append((index, url))
                 if book_html and book_html != '':
                     try:
-                        self.extractor.store_book(
+                        # Extract book and save into books
+                        self.books[url] = self.extractor.extract_book(
                             book_url=url, book_html=book_html)
                     except Exception as e:
                         print(
                             f"Error while extracting book: {url}, {e}", file=error_file)
 
-    def download_single_book(self, book_url):
+    def download_single_book(self, book_url) -> Book:
+        '''
+            Downloads and returns the book with in the book_url
+        '''
         if not utils.is_book_url(book_url):
             print(f"Bad book_url: {book_url}")
             return
@@ -193,7 +185,13 @@ class BookDownloader():
                     f"Error while extracting book: {book_url}, {e}")
         return book
 
-    def download_books(self, books_file="data/books.txt"):
+    def download_books(self, books_file="data/books.txt") -> dict[str, Book]:
+        '''
+            Downloads books with their url in the books_file, 
+            stores them in books dictionary.
+
+            Returns the book dictionary
+        '''
         print("Downloading the books, please wait...")
 
         # Read book urls from data/books.txt and download into books/{id}.html
@@ -207,8 +205,10 @@ class BookDownloader():
             initial_threads = [threading.Thread(target=self.__download_book, args=(
                 index, url,)) for index, url in enumerate(book_urls)]
 
+            # Run threads to download the books
             utils.run_threads_and_wait(initial_threads)
 
+            # As long as there are some books which failed to download, try again to download
             while len(self.failed_downloads) > 0:
                 failed = len(self.failed_downloads)
                 print(
@@ -220,9 +220,15 @@ class BookDownloader():
                 self.failed_downloads.clear()
                 utils.run_threads_and_wait(trial_threads)
 
-            print(f"Extracting and saving into '{self.books_pickle}'...")
-            self.extractor.pickle_books(self.books_pickle)
-
             end_time = time.time()
             print(
                 f"{books_count} documents has been downloaded and extracted in {end_time-start_time} seconds.")
+
+            return self.books
+
+    def pickle_books(self, file_name: str = "out/books.pickle") -> NoReturn:
+        '''
+            Pickles books dictionary to given file_name
+        '''
+        print(f"Pickling books into '{file_name}'...")
+        utils.pickle_object(self.books, file_name)

@@ -15,9 +15,10 @@ BOOK_VECTORS_PICKLE = "out/pickle/book_vectors.pickle"
 
 
 def vectorize_books(books_file: str):
-    # Download books
-    book_downloader = BookDownloader(books_pickle=BOOKS_PICKLE)
-    book_downloader.download_books(books_file)
+    # Download and pickle the books
+    book_downloader = BookDownloader()
+    books_dict = book_downloader.download_books(books_file)
+    book_downloader.pickle_books(file_name=BOOKS_PICKLE)
 
     # Preprocess books
     book_preprocessor = BookPreprocessor(
@@ -61,7 +62,7 @@ def get_recommendations_of_book(book_url: str):
     )
 
     query_vector = book_vectorizer.vectorize_query_book(book.url, description)
-    book_vectors: dict(str, Vector) = utils.unpickle_object(
+    book_vectors: dict[str, Vector] = utils.unpickle_object(
         BOOK_VECTORS_PICKLE)
 
     similarities = [(query_vector.calculate_similarity(book_vector), book_url)
