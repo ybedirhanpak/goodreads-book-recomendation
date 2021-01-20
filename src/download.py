@@ -116,10 +116,8 @@ class BookDownloader():
         self.books_dict = {}
         self.failed_downloads = []
         self.extractor = BookExtractor()
-        # Create books directory
-        utils.create_dir("out/books")
 
-    def __download_book(self, index: int, url: str):
+    def __download_book(self, index: int, url: str, save_into_file=False):
         '''
             Downloads a single book if it hasn't been downloaded before,
             If download is failed, adds the (index, url) tuple into failed_downloads
@@ -142,11 +140,12 @@ class BookDownloader():
                         req = urllib.request.Request(url)
                         with urllib.request.urlopen(req, timeout=60) as response:
                             book_html = response.read().decode("utf-8")
-                            print(
-                                f"Book is saved into: {file_name}", file=log_file)
-                            # Save book into file
-                            with open(utils.get_file_path(file_name), "w+") as f_out:
-                                print(book_html, file=f_out)
+                            if save_into_file:
+                                print(
+                                    f"Book is saved into: {file_name}", file=log_file)
+                                # Save book into file
+                                with open(utils.get_file_path(file_name), "w+") as f_out:
+                                    print(book_html, file=f_out)
                     except Exception as e:
                         print(
                             f"Error while downloading book: {url}, {e}", file=error_file)
@@ -186,7 +185,7 @@ class BookDownloader():
                     f"Error while extracting book: {book_url}, {e}")
         return book
 
-    def download_books(self, books_file="data/books.txt") -> dict[str, Book]:
+    def download_books(self, books_file="data/books.txt", save_into_file = False) -> dict[str, Book]:
         '''
             Downloads books with their url in the books_file, 
             stores them in books dictionary.
@@ -194,6 +193,10 @@ class BookDownloader():
             Returns the book dictionary
         '''
         print("Downloading the books, please wait...")
+
+        if save_into_file:
+            # Create books directory
+            utils.create_dir("out/books")
 
         # Read book urls from data/books.txt and download into books/{id}.html
         with open(utils.get_file_path(books_file)) as f:
@@ -204,7 +207,7 @@ class BookDownloader():
 
             # Create one thread to download a book
             initial_threads = [threading.Thread(target=self.__download_book, args=(
-                index, url,)) for index, url in enumerate(book_urls)]
+                index, url, save_into_file)) for index, url in enumerate(book_urls)]
 
             # Run threads to download the books
             utils.run_threads_and_wait(initial_threads)
