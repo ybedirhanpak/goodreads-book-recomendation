@@ -1,9 +1,11 @@
 import math
 import time
 import utils
-from functools import reduce
-from preprocess import BookPreprocessor
-from typing import List
+from book import Book
+from typing import List, Tuple
+
+DESCRIPTION_DATA_PICKLE = "out/pickle/description_data.pickle"
+GENRE_DATA_PICKLE = "out/pickle/genre_data.pickle"
 
 
 class Vector():
@@ -17,6 +19,9 @@ class Vector():
     def __str__(self):
         return repr(self.weight_dict)
 
+    def __repr__(self) -> str:
+        return repr(self.weight_dict)
+
     def get_size(self):
         return math.sqrt(sum([x ** 2 for x in self.weight_dict.values()]))
 
@@ -28,84 +33,228 @@ class Vector():
         size_product = self.get_size() * other_vector.get_size()
         if size_product == 0:
             return 0
-        print(f"Cross product: {cross_product}, self size: {self.get_size()}, other size: {other_vector.get_size()}")
         return cross_product / size_product
+
+    def project(self, vocabulary) -> dict[str, str]:
+        projection = {}
+        for key, value in self.weight_dict.items():
+            projection[key] = vocabulary
+        return {vocabulary[key]: self.weight_dict[key] for key in self.weight_dict.keys()}
+
+
+class BookData():
+    def __init__(self, content_type: str) -> None:
+        self.content_type = content_type
+        self.vocabulary = set()
+        self.inverted_index: dict[str, set] = {}
+        self.term_frequency: dict[(str, str), int] = {}
+        self.doc_frequency: dict[str] = {}
+
+    def pickle(self, location: str):
+        self.vocabulary = list(self.vocabulary)
+        utils.pickle_object(self, location)
+
+
+class BookPreprocessor():
+    def __init__(self, books_dict: dict[str, Book] = None, books_dict_file: str = None):
+        # If there is a file provided, use it to unpickle books dict
+        if books_dict_file:
+            self.books_dict = utils.unpickle_object(books_dict_file)
+        else:
+            self.books_dict = books_dict
+
+        self.genre_data = BookData('genre')
+        self.description_data = BookData('description')
+
+    def __tokenize_text(self, text: str):
+        # Remove punctuation of the document
+        normalized_text = utils.normalize_doc(text)
+
+        token_list = []
+
+        # Preprocess each token in the document
+        for token in normalized_text.split(" "):
+            # Normalize the token
+            n_token = utils.normalize_token(token)
+
+            # Skip empty characters
+            if n_token == '':
+                continue
+
+            token_list.append(n_token)
+
+        return token_list
+
+    def tokenize_description(self, book: Book) -> List[str]:
+        return self.__tokenize_text(book.description)
+
+    def tokenize_genres(self, book: Book) -> List[str]:
+        return [' '.join(self.__tokenize_text(genre)) for genre in book.genres]
+
+    def preprocess_book_content(self, book: Book, content_type: str):
+        book_url = book.url
+        if content_type == 'description':
+            # Description
+            content_tokens = self.tokenize_description(book)
+            book_data = self.description_data
+        else:
+            # Genre
+            content_tokens = self.tokenize_genres(book)
+            book_data = self.genre_data
+
+        for token in content_tokens:
+            # Add token into vocabulary
+            book_data.vocabulary.add(token)
+
+            # Add document into inverted index
+            if token not in book_data.inverted_index:
+                book_data.inverted_index[token] = {book_url}
+            else:
+                book_data.inverted_index[token].add(book_url)
+
+            word_book_pair = (token, book_url)
+
+            # Add 1 to frequency of a word occurrence in a book
+            if word_book_pair not in book_data.term_frequency:
+                book_data.term_frequency[word_book_pair] = 1
+                # Add 1 to document frequency
+                if token not in book_data.doc_frequency:
+                    book_data.doc_frequency[token] = 1
+                else:
+                    book_data.doc_frequency[token] += 1
+            else:
+                book_data.term_frequency[word_book_pair] += 1
+
+    def preprocess_book(self, book):
+        self.preprocess_book_content(book, 'description')
+        self.preprocess_book_content(book, 'genre')
+
+    def preprocess_books(self):
+        start_time = time.time()
+        for book in self.books_dict.values():
+            self.preprocess_book(book)
+
+        end_time = time.time()
+        print(f"It took {end_time - start_time} seconds to preprocess books")
+
+    def pickle_book_data(self):
+        self.description_data.pickle(DESCRIPTION_DATA_PICKLE)
+        self.genre_data.pickle(GENRE_DATA_PICKLE)
 
 
 class BookVectorizer():
-    def __init__(self,
-                 preprocessor=None,
-                 books_pickle="out/books.pickle",
-                 vocabulary_pickle="out/vocabulary.pickle",
-                 ie_pickle="out/ie.pickle",
-                 tf_pickle="out/tf.pickle",
-                 df_pickle="out/df.pickle",
-                 book_vectors_pickle="out/book_vectors.pickle"):
-        self.preprocessor: BookPreprocessor = preprocessor
-        if self.preprocessor != None:
-            self.books = self.preprocessor.books
-            self.vocabulary_list = self.preprocessor.vocabulary_list
-            self.inverted_index = self.preprocessor.inverted_index
-            self.term_frequency = self.preprocessor.term_frequency
-            self.doc_frequency = self.preprocessor.doc_frequency
-        else:
-            self.books = utils.unpickle_object(books_pickle)
-            self.vocabulary_list = utils.unpickle_object(vocabulary_pickle)
-            self.inverted_index = utils.unpickle_object(ie_pickle)
-            self.term_frequency = utils.unpickle_object(tf_pickle)
-            self.doc_frequency = utils.unpickle_object(df_pickle)
-        self.book_vectors_pickle = book_vectors_pickle
-        self.book_count = len(self.books)
-        self.book_vectors = {}
+    def __init__(self, books_dict_file: str = None):
 
-    def get_tf_weight(self, word, book_url, tf_dict: dict):
-        word_book_pair = (word, book_url)
+        if books_dict_file:
+            self.books_dict: dict[str, Book] = utils.unpickle_object(
+                books_dict_file)
+            self.description_data: BookData = utils.unpickle_object(
+                DESCRIPTION_DATA_PICKLE)
+            self.genre_data: BookData = utils.unpickle_object(
+                GENRE_DATA_PICKLE)
+            self.book_count = len(self.books_dict)
+
+    def get_tf_weight(self, key, tf_dict: dict):
         tf_weight = 0
-        if tf_dict and word in tf_dict:
-            tf = tf_dict[word]
-            tf_weight = 1 + (math.log10(tf))
-        elif word_book_pair in self.term_frequency:
-            tf = self.term_frequency[(word, book_url)]
+        if tf_dict and key in tf_dict:
+            tf = tf_dict[key]
             tf_weight = 1 + (math.log10(tf))
         return tf_weight
 
-    def get_idf_weight(self, word):
+    def get_idf_weight(self, key, df_dict: dict[str, int]):
         idf_weight = 0
-        if word in self.doc_frequency:
-            df = self.doc_frequency[word]
+        if key in df_dict:
+            df = df_dict[key]
             idf_weight = math.log10(self.book_count/df)
         return idf_weight
 
-    def get_tf_idf_weight(self, word, book_url):
-        return self.get_tf_weight(word, book_url, None) * self.get_idf_weight(word)
+    def vectorize_book(self, book_content: List[str], vocabulary: List[str], df_dict: dict[str, int]):
+        term_frequencies = {word: book_content.count(
+            word) for word in book_content if word in vocabulary}
 
-    def vectorize_book(self, book_url):
-        vector = Vector(len(self.vocabulary_list))
-        for index, word in enumerate(self.vocabulary_list):
-            tf_idf_weight = self.get_tf_idf_weight(word, book_url)
-            if tf_idf_weight > 0:
-                vector.add_index_weight(index, tf_idf_weight)
-        return vector
-
-    def vectorize_query_book(self, book_url, list_of_words: List[str]):
-        term_frequencies = {word: list_of_words.count(
-            word) for word in list_of_words if word in self.vocabulary_list}
-
-        vector = Vector(len(self.vocabulary_list))
-        for index, word in enumerate(self.vocabulary_list):
+        vector = Vector(len(vocabulary))
+        for index, word in enumerate(vocabulary):
             tf_idf_weight = self.get_tf_weight(
-                word, book_url, term_frequencies) * self.get_idf_weight(word)
+                word, term_frequencies) * self.get_idf_weight(word, df_dict)
             if tf_idf_weight > 0:
                 vector.add_index_weight(index, tf_idf_weight)
 
         return vector
 
-    def vectorize_books(self):
-        start_time = time.time()
-        for book_url in self.books.keys():
-            # Calculate vector
-            vector = self.vectorize_book(book_url)
-            self.book_vectors[book_url] = vector
-        utils.pickle_object(self.book_vectors, self.book_vectors_pickle)
-        end_time = time.time()
-        print(f"It took {end_time - start_time} seconds to vectorize books")
+    def vectorize_book_data(self, book_url: str, book_data: BookData) -> Vector:
+        vector = Vector(len(book_data.vocabulary))
+        for index, word in enumerate(book_data.vocabulary):
+            tf_key = (word, book_url)
+            df_key = word
+            tf_weight = self.get_tf_weight(tf_key, book_data.term_frequency)
+            idf_weight = self.get_idf_weight(df_key, book_data.doc_frequency)
+            tf_idf_weight = tf_weight * idf_weight
+            if tf_idf_weight > 0:
+                vector.add_index_weight(index, tf_idf_weight)
+        return vector
+
+    def vectorize_book_dict(self, books_dict: dict[str, Book]) -> Tuple[dict]:
+        book_preprocessor = BookPreprocessor(books_dict=books_dict)
+        book_preprocessor.preprocess_books()
+        book_preprocessor.pickle_book_data()
+
+        print("Vectorizing books_dict...")
+
+        description_data = book_preprocessor.description_data
+        genre_data = book_preprocessor.genre_data
+
+        self.book_count = len(books_dict)
+
+        self.description_vectors = {book_url: self.vectorize_book_data(book_url, description_data)
+                                    for book_url in books_dict.keys()}
+
+        self.genre_vectors = {book_url: self.vectorize_book_data(book_url, genre_data)
+                              for book_url in books_dict.keys()}
+
+        return (self.description_vectors, self.genre_vectors)
+
+    def pickle_vectors(self):
+        print("Pickling the vectors...")
+        utils.pickle_object(self.description_vectors,
+                            "out/pickle/description_vectors.pickle")
+        utils.pickle_object(self.genre_vectors,
+                            "out/pickle/genre_vectors.pickle")
+
+    def combine_description_genre_similarity(self, description_similarity: float, genre_similarity: float) -> float:
+        return 0.5 * description_similarity + 0.5 * genre_similarity
+
+    def calculate_similarities(self, book: Book):
+        book_preprocessor = BookPreprocessor()
+        book_url = book.url
+        description = book_preprocessor.tokenize_description(book)
+        genre = book_preprocessor.tokenize_genres(book)
+
+        # Get vectors of query book
+        description_vector: Vector = self.vectorize_book(
+            description, self.description_data.vocabulary, self.description_data.doc_frequency)
+        genre_vector: Vector = self.vectorize_book(
+            genre, self.genre_data.vocabulary, self.genre_data.doc_frequency)
+
+        # Get vectors of other books
+        description_vectors: dict[str, Vector] = utils.unpickle_object(
+            "out/pickle/description_vectors.pickle")
+        genre_vectors: dict[str, Vector] = utils.unpickle_object(
+            "out/pickle/genre_vectors.pickle")
+
+        similarities = []
+        for book_url in description_vectors.keys():
+            if book_url in genre_vectors:
+                # Other book's vectors
+                other_desc_vector = description_vectors[book_url]
+                other_genre_vector = genre_vectors[book_url]
+                # Calculate similarities
+                desc_similarity = description_vector.calculate_similarity(
+                    other_desc_vector)
+                genre_similarity = genre_vector.calculate_similarity(
+                    other_genre_vector)
+                # Combine similarities
+                similarity = self.combine_description_genre_similarity(
+                    desc_similarity, genre_similarity)
+                similarities.append((similarity, book_url))
+
+        return similarities

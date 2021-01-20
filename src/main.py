@@ -1,8 +1,7 @@
 import sys
 import utils
 from download import BookDownloader
-from preprocess import BookPreprocessor
-from vectorization import BookVectorizer, Vector
+from vectorization import BookVectorizer
 
 utils.create_dir("out/pickle")
 
@@ -20,56 +19,54 @@ def vectorize_books(books_file: str):
     books_dict = book_downloader.download_books(books_file)
     book_downloader.pickle_books(file_name=BOOKS_PICKLE)
 
-    # Preprocess books
-    book_preprocessor = BookPreprocessor(
-        books_pickle=BOOKS_PICKLE,
-        vocabulary_pickle=VOCABULARY_PICKLE,
-        ie_pickle=INVERTED_INDEX_PICKLE,
-        tf_pickle=TERM_FREQUENCY_PICKLE,
-        df_pickle=DOCUMENT_FREQUENCY_PICKLE
-    )
-    book_preprocessor.preprocess_books()
+    # Calculate and pickle vectors of all books
+    book_vectorizer = BookVectorizer()
+    book_vectorizer.vectorize_book_dict(books_dict)
+    book_vectorizer.pickle_vectors()
 
-    # Vectorize books
-    book_vectorizer = BookVectorizer(
-        preprocessor=book_preprocessor
-    )
+    # # Preprocess books
+    # book_preprocessor = BookPreprocessor(
+    #     books_dict=books_dict,
+    #     books_pickle=BOOKS_PICKLE,
+    #     vocabulary_pickle=VOCABULARY_PICKLE,
+    #     ie_pickle=INVERTED_INDEX_PICKLE,
+    #     tf_pickle=TERM_FREQUENCY_PICKLE,
+    #     df_pickle=DOCUMENT_FREQUENCY_PICKLE
+    # )
+    # book_preprocessor.preprocess_books()
 
-    book_vectorizer.vectorize_books()
+    # # Vectorize books
+    # book_vectorizer = BookVectorizer(
+    #     books_dict=books_dict,
+    #     preprocessor=book_preprocessor
+    # )
+
+    # book_vectorizer.vectorize_books()
 
 
 def get_recommendations_of_book(book_url: str):
     url = utils.compress_book_url(arg)
     print(url)
+
     # Download book
     book_downloader = BookDownloader()
     book = book_downloader.download_single_book(book_url)
 
     # Preprocess description and genres
-    book_preprocessor = BookPreprocessor()
+    book_vectorizer = BookVectorizer(books_dict_file=BOOKS_PICKLE)
+    similarities = book_vectorizer.calculate_similarities(book)
 
-    description = book_preprocessor.tokenize_description(book)
-    genres = book_preprocessor.tokenize_genres(book)
+    ranked_similarities = sorted(similarities, reverse=True)[:19]
+    print(ranked_similarities)
 
-    # Calculate vector for description and genres
-    book_vectorizer = BookVectorizer(
-        books_pickle=BOOKS_PICKLE,
-        vocabulary_pickle=VOCABULARY_PICKLE,
-        ie_pickle=INVERTED_INDEX_PICKLE,
-        tf_pickle=TERM_FREQUENCY_PICKLE,
-        df_pickle=DOCUMENT_FREQUENCY_PICKLE,
-        book_vectors_pickle=BOOK_VECTORS_PICKLE
-    )
+    print("Calculated recommendations:")
 
-    query_vector = book_vectorizer.vectorize_query_book(book.url, description)
-    book_vectors: dict[str, Vector] = utils.unpickle_object(
-        BOOK_VECTORS_PICKLE)
+    for ranking, book_url in ranked_similarities:
+        print(f"{ranking}, {utils.decompress_book_url(book_url)}")
 
-    similarities = [(query_vector.calculate_similarity(book_vector), book_url)
-                    for book_url, book_vector in book_vectors.items()]
-    recommendations = sorted(similarities, reverse=True)[:18]
-    print(recommendations)
-
+    print("Original recommendations:")
+    for book_url in book.recommendations:
+        print(book_url)
 
 if __name__ == "__main__":
     if len(sys.argv) < 2:
