@@ -1,4 +1,4 @@
-from typing import List, NoReturn
+from typing import List
 from book import Book
 import utils
 import time
@@ -91,10 +91,10 @@ class BookExtractor():
         '''
             Extracts and returns the book from book_html
         '''
-        url = utils.compress_book_url(book_url)
+        compressed_url = utils.compress_book_url(book_url)
         book_html = re.sub(r'\n|\r', ' ', book_html)
         return Book(
-            url=url,
+            url=compressed_url,
             title=self.__extract_title(book_html),
             description=self.__extract_description(book_html),
             authors=self.__extract_authors(book_html),
@@ -113,13 +113,13 @@ class BookDownloader():
         self.download_dir = download_dir
         self.logs_file = logs_file
         self.errors_file = errors_file
-        self.books = {}
+        self.books_dict = {}
         self.failed_downloads = []
         self.extractor = BookExtractor()
         # Create books directory
         utils.create_dir("out/books")
 
-    def __download_book(self, index: int, url: str) -> NoReturn:
+    def __download_book(self, index: int, url: str):
         '''
             Downloads a single book if it hasn't been downloaded before,
             If download is failed, adds the (index, url) tuple into failed_downloads
@@ -155,7 +155,8 @@ class BookDownloader():
                 if book_html and book_html != '':
                     try:
                         # Extract book and save into books
-                        self.books[url] = self.extractor.extract_book(
+                        compressed_url = utils.compress_book_url(url)
+                        self.books_dict[compressed_url] = self.extractor.extract_book(
                             book_url=url, book_html=book_html)
                     except Exception as e:
                         print(
@@ -224,11 +225,11 @@ class BookDownloader():
             print(
                 f"{books_count} documents has been downloaded and extracted in {end_time-start_time} seconds.")
 
-            return self.books
+            return self.books_dict
 
-    def pickle_books(self, file_name: str = "out/books.pickle") -> NoReturn:
+    def pickle_books(self, file_name: str = "out/books.pickle"):
         '''
             Pickles books dictionary to given file_name
         '''
-        print(f"Pickling books into '{file_name}'...")
-        utils.pickle_object(self.books, file_name)
+        print(f"Pickling books_dict into '{file_name}'...")
+        utils.pickle_object(self.books_dict, file_name)
