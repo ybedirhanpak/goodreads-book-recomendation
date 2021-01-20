@@ -61,4 +61,4 @@ def compress_book_url(book_url: str):
 
 
 def decompress_book_url(compressed_url: str):
-    return f"{BOOKS_BASE_URL}/{compressed_url}"
+    return f"{BOOKS_BASE_URL}{compressed_url}"
