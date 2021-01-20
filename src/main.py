@@ -2,15 +2,11 @@ import sys
 import utils
 from download import BookDownloader
 from vectorization import BookVectorizer
+import evaluation
 
 utils.create_dir("out/pickle")
 
 BOOKS_PICKLE = "out/pickle/books.pickle"
-VOCABULARY_PICKLE = "out/pickle/vocabulary.pickle"
-INVERTED_INDEX_PICKLE = "out/pickle/ie.pickle"
-TERM_FREQUENCY_PICKLE = "out/pickle/tf.pickle"
-DOCUMENT_FREQUENCY_PICKLE = "out/pickle/df.pickle"
-BOOK_VECTORS_PICKLE = "out/pickle/book_vectors.pickle"
 
 
 def vectorize_books(books_file: str):
@@ -24,29 +20,10 @@ def vectorize_books(books_file: str):
     book_vectorizer.vectorize_book_dict(books_dict)
     book_vectorizer.pickle_vectors()
 
-    # # Preprocess books
-    # book_preprocessor = BookPreprocessor(
-    #     books_dict=books_dict,
-    #     books_pickle=BOOKS_PICKLE,
-    #     vocabulary_pickle=VOCABULARY_PICKLE,
-    #     ie_pickle=INVERTED_INDEX_PICKLE,
-    #     tf_pickle=TERM_FREQUENCY_PICKLE,
-    #     df_pickle=DOCUMENT_FREQUENCY_PICKLE
-    # )
-    # book_preprocessor.preprocess_books()
-
-    # # Vectorize books
-    # book_vectorizer = BookVectorizer(
-    #     books_dict=books_dict,
-    #     preprocessor=book_preprocessor
-    # )
-
-    # book_vectorizer.vectorize_books()
-
 
 def get_recommendations_of_book(book_url: str):
-    url = utils.compress_book_url(arg)
-    print(url)
+    compressed_url = utils.compress_book_url(arg)
+    print(f"Calculate recommendations for {compressed_url}")
 
     # Download book
     book_downloader = BookDownloader()
@@ -57,16 +34,25 @@ def get_recommendations_of_book(book_url: str):
     similarities = book_vectorizer.calculate_similarities(book)
 
     ranked_similarities = sorted(similarities, reverse=True)[:19]
-    print(ranked_similarities)
-
-    print("Calculated recommendations:")
-
-    for ranking, book_url in ranked_similarities:
-        print(f"{ranking}, {utils.decompress_book_url(book_url)}")
+    calculated_recommendations = [
+        url for rank, url in ranked_similarities if url != compressed_url]
 
     print("Original recommendations:")
     for book_url in book.recommendations:
-        print(book_url)
+        print(utils.decompress_book_url(book_url))
+
+    print("---------------------------")
+
+    print("Calculated recommendations:")
+    for book_url in calculated_recommendations:
+        print(utils.decompress_book_url(book_url))
+
+    precision, average_precision = evaluation.evaluate_precision(
+        book.recommendations, calculated_recommendations)
+
+    print("Precision:", precision)
+    print("Average precision:", average_precision)
+
 
 if __name__ == "__main__":
     if len(sys.argv) < 2:
