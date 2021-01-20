@@ -23,7 +23,7 @@ def vectorize_books(books_file: str):
 
 def get_recommendations_of_book(book_url: str):
     compressed_url = utils.compress_book_url(arg)
-    print(f"Calculate recommendations for {compressed_url}")
+    print(f"Calculating recommendations for {compressed_url}...")
 
     # Download book
     book_downloader = BookDownloader()
@@ -33,25 +33,32 @@ def get_recommendations_of_book(book_url: str):
     book_vectorizer = BookVectorizer(books_dict_file=BOOKS_PICKLE)
     similarities = book_vectorizer.calculate_similarities(book)
 
-    ranked_similarities = sorted(similarities, reverse=True)[:19]
-    calculated_recommendations = [
-        url for rank, url in ranked_similarities if url != compressed_url]
+    # Get calculated_recommendations
+    ranked_similarities = sorted(similarities, reverse=True)
+    calculated_recommendations = [url for rank, url in ranked_similarities if url != compressed_url][:18]
 
-    print("Original recommendations:")
-    for book_url in book.recommendations:
+    # Get goodread's recommendations
+    goodreads_recommendations = book.recommendations[:18]
+
+    print("---------------------------")
+    print("Goodread's recommendations:")
+    print("---------------------------")
+    for book_url in goodreads_recommendations:
         print(utils.decompress_book_url(book_url))
 
     print("---------------------------")
-
     print("Calculated recommendations:")
+    print("---------------------------")
     for book_url in calculated_recommendations:
         print(utils.decompress_book_url(book_url))
 
     precision, average_precision = evaluation.evaluate_precision(
-        book.recommendations, calculated_recommendations)
+        goodreads_recommendations, calculated_recommendations)
 
+    print("---------------------------")
     print("Precision:", precision)
     print("Average precision:", average_precision)
+    print("---------------------------")
 
 
 if __name__ == "__main__":
