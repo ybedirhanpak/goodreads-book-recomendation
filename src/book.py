@@ -1,5 +1,8 @@
+from typing import List
+
+
 class Book():
-    def __init__(self, url, title, description, authors, recommendations, genres):
+    def __init__(self, url: str, title: str, description: str, authors: List[str], recommendations: List[str], genres: List[str]):
         self.url = url
         self.title = title
         self.description = description
